@@ -1,5 +1,5 @@
 # Copyright 2015 Google Inc. All Rights Reserved.
-"""Tests for Cache."""
+"""Tests for ProxyClient."""
 
 import os
 import socket
