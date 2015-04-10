@@ -355,18 +355,26 @@ class ApiClientTest(unittest.TestCase):
       client.get_users_and_groups()
 
   @responses.activate
+  def test_get_users_groups_out_of_quota(self):
+    json_response = '{}'
+    self._add_metadata_responses()
+    responses.add(responses.POST, _LINUX_VIEWS_URL, body=json_response)
+
+    client = ApiClient('https://www.googleapis.com/', 'alpha', 'v1')
+    for _ in range(0, 10):
+      client.get_users_and_groups()
+    with self.assertRaisesMatch(compute_accounts.OutOfQuotaException,
+                                'No quota available'):
+      client.get_users_and_groups()
+
+  @responses.activate
   def test_get_authorized_keys_out_of_quota(self):
-    json_response = textwrap.dedent("""\
-        {
-            "resource": {
-                "keys": []
-            }
-        }""")
+    json_response = '{}'
     self._add_metadata_responses()
     responses.add(responses.POST, _KEYS_VIEW_URL + '/user2', body=json_response)
 
     client = ApiClient('https://www.googleapis.com/', 'alpha', 'v1')
-    for _ in range(0, 10):
+    for _ in range(0, 20):
       client.get_authorized_keys('user2')
     with self.assertRaisesMatch(compute_accounts.OutOfQuotaException,
                                 'No quota available'):

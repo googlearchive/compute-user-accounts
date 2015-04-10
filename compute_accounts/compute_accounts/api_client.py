@@ -29,8 +29,8 @@ import simplejson
 _METADATA_ROOT_URL = 'http://metadata.google.internal/computeMetadata/v1/'
 _VIEW_PATH = 'projects/{project}/zones/{zone}/{view_name}'
 _INSTANCE_PATH = 'projects/{project}/zones/{zone}/instances/{instance_name}'
-_LINUX_VIEWS_RATE_LIMIT = (3, 5 * 60)  # 3 request burst. 1 request / 5 min.
-_KEYS_VIEW_RATE_LIMIT = (10, 60)  # 10 request burst. 1 request / 1 min.
+_LINUX_VIEWS_RATE_LIMIT = (10, 60)  # 10 request burst. 1 request / 1 min.
+_KEYS_VIEW_RATE_LIMIT = (20, 30)  # 20 request burst. 1 request / 0.5 min.
 
 
 class ApiClient(object):

@@ -27,7 +27,7 @@ from . import cache
 from . import exceptions
 
 UNIX_SOCKET_PATH = '/var/run/compute_accounts/sock'
-_BACKGROUND_REFRESH_FREQUENCY_SEC = 3600  # Once an hour.
+_BACKGROUND_REFRESH_FREQUENCY_SEC = 1800  # Once every half hour.
 _SOCKET_TIMEOUT_SEC = 1
 
 
