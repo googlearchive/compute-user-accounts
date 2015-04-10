@@ -1,90 +1,68 @@
 #!/bin/bash
+# Copyright 2015 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -o pipefail
+set -e
 
 if [ "$(id -u)" != "0" ]; then
   echo "This script must be run as root." 1>&2
   exit 1
 fi
 
-OPTIND=1
+ACCOUNT="compute_accounts"
+SCRIPT_DIR="/usr/share/google/compute_accounts"
+INSTALL_APT_DEPS=true
+START_DAEMON=true
+RESTART_SSHD=true
+DAEMON_ARGS=""
 
-flag_count=0
-daemon_args=""
-
-while getopts "hd:s" opt; do
-  case "$opt" in
-  h|\?)
-    echo "sudo ./install [-s | -d <CORP_IP> ]" 1>&2
-    exit 1
-    ;;
-  d)
-    daemon_args="--api-root http://${OPTARG}:3990/ --logging-level debug"
-    flag_count=$((flag_count + 1))
-    ;;
-  s)
-    daemon_args="--computeaccounts-api-version stagingvm_alpha
-      --compute-api-version staging_v1
-      --logging-level debug"
-    flag_count=$((flag_count + 1))
-    ;;
-  esac
-done
-
-if [ "${flag_count}" -gt 1 ]; then
-  echo "-s and -d are mutually exclusive." 1>&2
-  exit 1
-fi
-
-ACCOUNT=compute_accounts
-RUN_DIR=/var/run/compute_accounts
-LOG_DIR=/var/log/compute_accounts
-SCRIPT_DIR=/usr/share/google/compute_accounts
-
-set -o pipefail
-set -e
-
-# Add user and system directories.
+# Add user account and script directory.
 if ! grep -q ${ACCOUNT} /etc/passwd; then
   # Force useradd to start allocating local users in the 50000 range.
   useradd --system --user-group --uid 50000 --comment "UID is 50000 to avoid UID collisions for new local users" ${ACCOUNT}
 fi
-if [ ! -d "${RUN_DIR}" ]; then
-  mkdir ${RUN_DIR}
-  chown ${ACCOUNT}:${ACCOUNT} ${RUN_DIR}
-fi
-if [ ! -d "${LOG_DIR}" ]; then
-  mkdir ${LOG_DIR}
-  chown ${ACCOUNT}:${ACCOUNT} ${LOG_DIR}
-  chmod 750 ${LOG_DIR}
-fi
 if [ ! -d "${SCRIPT_DIR}" ]; then
   mkdir -p ${SCRIPT_DIR}
-  # This is required by sshd for AuthorizedKeyCommand.
-  chmod 755 ${SCRIPT_DIR}
 fi
 
 # Get necessary packages.
-sudo apt-get update
-sudo apt-get install -y python-pip g++ make
+if [ "${INSTALL_APT_DEPS}" = true ]; then
+  sudo apt-get update
+  sudo apt-get install -y python-pip g++ make
+fi
 
 # Install the daemon and authorized keys command.
 pushd compute_accounts
 python setup.py install --install-scripts=${SCRIPT_DIR}
 popd
 # This is required by sshd for AuthorizedKeyCommand.
-chmod 755 ${SCRIPT_DIR}/authorized_keys.py
+chmod -R 755 ${SCRIPT_DIR}
+# This is required by sudo.
+chmod 440 /etc/sudoers.d/compute-accounts
 
 # Build and install the nss plugin.
 make -C nss_plugin release
 install -m 0644 nss_plugin/bin/libnss_google.so.2.0.1 /usr/lib/x86_64-linux-gnu/
 ldconfig
 
-# (Re)Start daemon.
-sudo pkill -u ${ACCOUNT} || true
-sudo ${SCRIPT_DIR}/proxy_daemon.py ${daemon_args}
+# Register init.d script.
+update-rc.d compute-accounts defaults
 
-# Enable sudo.
-if ! grep -q gce-sudoers /etc/sudoers; then
-  echo "%gce-sudoers ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
+# (Re)Start daemon.
+if [ "${START_DAEMON}" = true ]; then
+  /etc/init.d/compute-accounts restart ${DAEMON_ARGS}
 fi
 
 # Enable lazy home directory creation.
@@ -102,4 +80,6 @@ if ! grep -q ${SCRIPT_DIR}/authorized_keys.py /etc/ssh/sshd_config; then
   echo "AuthorizedKeysCommand ${SCRIPT_DIR}/authorized_keys.py" >> /etc/ssh/sshd_config
   echo "AuthorizedKeysCommandUser ${ACCOUNT}" >> /etc/ssh/sshd_config
 fi
-/etc/init.d/ssh restart
+if [ "${RESTART_SSHD}" = true ]; then
+  /etc/init.d/ssh restart
+fi
