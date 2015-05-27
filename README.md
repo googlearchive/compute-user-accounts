@@ -1,4 +1,4 @@
-Google Compute Accounts VM Library
+Google Compute User Accounts
 ==================================
 
 Official site: https://github.com/GoogleCloudPlatform/compute-accounts
