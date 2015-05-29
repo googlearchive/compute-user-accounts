@@ -20,9 +20,9 @@ frustration later on.
 Testing
 ---
 
-To run the tests (requires [googletest](https://code.google.com/p/googletest/)): `make test`
-
-To run code coverage: `make cover`
+0. [Install googletest](https://code.google.com/p/googletest/)
+0. Run tests: `make test`
+0. Run code coverage: `make cover`
 
 Code reviews
 ---
