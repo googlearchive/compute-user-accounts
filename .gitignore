@@ -1,8 +1,8 @@
 # Generated files.
-*.pyc
 *.gcov
 
 # Compilation directories.
-nss_plugin/obj/
-nss_plugin/objt/
-nss_plugin/bin/
+pkg/
+nssplugin/obj/
+nssplugin/bin/
+nssplugin/gtest/
