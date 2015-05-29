@@ -1,0 +1,101 @@
+#!/bin/sh
+# Copyright 2015 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+### BEGIN INIT INFO
+# Provides:          gcua
+# X-Start-Before:    ssh
+# Required-Start:    $local_fs $network $named $syslog
+# Required-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Google Compute User Accounts
+# Description:       Enable Google Compute User Accounts on this VM.
+### END INIT INFO
+
+NAME="Google Compute User Accounts"
+DAEMON="/usr/share/google/gcua"
+PID_FILE="/var/run/gcua.pid"
+
+get_pid() {
+  cat "${PID_FILE}"
+}
+
+is_running() {
+  [ -f "${PID_FILE}" ] && ps $(get_pid) 2>&1 > /dev/null
+}
+
+start_daemon() {
+  if is_running; then
+    echo "Already started"
+    exit 1
+  fi
+  echo "Starting ${NAME}..."
+  ${DAEMON} ${@} &
+  echo ${!} > ${PID_FILE}
+  echo "Done"
+}
+
+stop_daemon() {
+  if ! is_running; then
+    echo "Not running"
+    exit 7
+  fi
+  echo "Stopping ${NAME}..."
+  kill $(get_pid)
+  ret=${?}
+  if [ ${ret} -eq 0 ]; then
+    rm -f ${PID_FILE}
+    echo "Stopped"
+  else
+    echo "Failed to stop"
+    exit 1
+  fi
+}
+
+restart_daemon() {
+  if is_running; then
+    stop_daemon
+  fi
+  start_daemon ${@}
+}
+
+daemon_status() {
+  if is_running; then
+    echo "Running"
+  else
+    echo "Stopped"
+    exit 3
+  fi
+}
+
+case "${1}" in
+  start)
+    shift
+    start_daemon ${@}
+    ;;
+  stop)
+    stop_daemon
+    ;;
+  restart)
+    restart_daemon
+    ;;
+  status)
+    daemon_status
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|status}"
+    exit 1
+    ;;
+esac
