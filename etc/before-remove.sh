@@ -13,5 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Uninstall the NSS plugin.
-ldconfig
+ACCOUNT=gcua
+DIR=/usr/share/google
+
+# Stop daemon.
+if [ -x /bin/systemctl ]; then
+  systemctl --no-reload disable gcua
+  systemctl stop gcua
+else
+  update-rc.d gcua remove
+  service gcua stop
+fi
+
+# Disable NSS plugin.
+sed -i "s/ google//" /etc/nsswitch.conf
+
+# Disable AuthorizedKeysCommand and restart sshd.
+sed -i "s#AuthorizedKeysCommand ${DIR}/authorizedkeys##" /etc/ssh/sshd_config
+sed -i "s/AuthorizedKeysCommandUser ${ACCOUNT}//" /etc/ssh/sshd_config
+if [ -x /bin/systemctl ]; then
+  systemctl reload sshd
+else
+  service ssh restart
+fi

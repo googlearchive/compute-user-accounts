@@ -42,7 +42,7 @@ start_daemon() {
     exit 1
   fi
   echo "Starting ${NAME}..."
-  ${DAEMON} ${@} &
+  ${DAEMON} &
   echo ${!} > ${PID_FILE}
   echo "Done"
 }
@@ -68,7 +68,7 @@ restart_daemon() {
   if is_running; then
     stop_daemon
   fi
-  start_daemon ${@}
+  start_daemon
 }
 
 daemon_status() {
@@ -83,7 +83,7 @@ daemon_status() {
 case "${1}" in
   start)
     shift
-    start_daemon ${@}
+    start_daemon
     ;;
   stop)
     stop_daemon

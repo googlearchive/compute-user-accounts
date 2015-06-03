@@ -34,14 +34,15 @@ SOURCES:= \
   ${GOPATH}/bin/authorizedkeys=/usr/share/google/ \
   nssplugin/bin/libnss_google.so.2.0.1=/usr/lib/ \
   etc/init.d/gcua \
-  etc/sudoers.d/gcua
+  etc/sudoers.d/gcua \
+  etc/systemd/system/gcua.service
 
 FPM_ARGS:= \
   -s dir -n ${PACKAGE_NAME} -v ${VERSION} -a native --license ${LICENSE} \
   -m ${MAINTAINER} --description ${DESCRIPTION} --url ${URL} --vendor ${VENDOR} \
   -d "libc6 >= ${LIBC_VERSION}" -d "libstdc++6 >= ${LIBSTDCXX_VERSION}" \
-  --after-install etc/after-install.sh --after-remove etc/after-remove.sh \
-  ${SOURCES}
+  --after-install etc/after-install.sh --before-remove etc/before-remove.sh \
+  --after-remove etc/after-remove.sh ${SOURCES}
 
 all: build
 

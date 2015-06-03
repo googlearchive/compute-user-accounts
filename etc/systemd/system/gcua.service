@@ -1,0 +1,10 @@
+[Unit]
+Description=Google Compute User Accounts
+After=syslog.target network.target
+
+[Service]
+ExecStart=/usr/share/google/gcua
+Restart=on-failure
+
+[Install]
+WantedBy=sshd.target
