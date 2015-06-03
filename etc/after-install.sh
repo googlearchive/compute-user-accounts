@@ -33,9 +33,16 @@ chmod 440 /etc/sudoers.d/gcua
 chmod 0644 /usr/lib/libnss_google.so.2.0.1
 ldconfig
 
-# (Re)Start daemon.
-update-rc.d gcua defaults
-service gcua restart
+# Start daemon.
+if [ -x /bin/systemctl ]; then
+  rm -f /etc/init.d/gcua
+  systemctl enable gcua
+  systemctl start --no-block gcua
+else
+  rm -f /etc/systemd/system/gcua.service
+  update-rc.d gcua defaults
+  service gcua start
+fi
 
 # Enable lazy home directory creation.
 if ! grep -q pam_mkhomedir.so /etc/pam.d/sshd; then
@@ -51,5 +58,9 @@ fi
 if ! grep -q ${DIR}/authorizedkeys /etc/ssh/sshd_config; then
   echo "AuthorizedKeysCommand ${DIR}/authorizedkeys" >> /etc/ssh/sshd_config
   echo "AuthorizedKeysCommandUser ${ACCOUNT}" >> /etc/ssh/sshd_config
-  service ssh restart
+  if [ -x /bin/systemctl ]; then
+    systemctl reload sshd
+  else
+    service ssh restart
+  fi
 fi
