@@ -33,15 +33,22 @@ chmod 440 /etc/sudoers.d/gcua
 chmod 0644 /usr/lib/libnss_google.so.2.0.1
 ldconfig
 
-# Start daemon.
+# (Re-)Start daemon.
 if [ -x /bin/systemctl ]; then
+  # Systemd.
   rm -f /etc/init.d/gcua
   systemctl enable gcua
-  systemctl start --no-block gcua
+  systemctl restart --no-block gcua
+elif [ -x /sbin/chkconfig ]; then
+  # System-V on RHEL.
+  rm -f /etc/systemd/system/gcua.service
+  chkconfig --add gcua
+  service gcua restart
 else
+  # System-V on Debian.
   rm -f /etc/systemd/system/gcua.service
   update-rc.d gcua defaults
-  service gcua start
+  service gcua restart
 fi
 
 # Enable lazy home directory creation.
@@ -51,16 +58,28 @@ fi
 
 # Enable NSS plugin.
 if ! grep -q google /etc/nsswitch.conf; then
-  sed -i -r "s/^((passwd|group|shadow):\s+compat)/\1 google/" /etc/nsswitch.conf
+  sed -i -r "s/^((passwd|group|shadow):\s+(compat|files))/\1 google/" /etc/nsswitch.conf
 fi
 
-# Enable AuthorizedKeysCommand and restart sshd.
+# Enable AuthorizedKeysCommand.
 if ! grep -q ${DIR}/authorizedkeys /etc/ssh/sshd_config; then
   echo "AuthorizedKeysCommand ${DIR}/authorizedkeys" >> /etc/ssh/sshd_config
-  echo "AuthorizedKeysCommandUser ${ACCOUNT}" >> /etc/ssh/sshd_config
-  if [ -x /bin/systemctl ]; then
-    systemctl reload sshd
+  if grep -q AuthorizedKeysCommandRunAs /etc/ssh/sshd_config; then
+    # Old version of sshd.
+    echo "AuthorizedKeysCommandRunAs ${ACCOUNT}" >> /etc/ssh/sshd_config
   else
+    echo "AuthorizedKeysCommandUser ${ACCOUNT}" >> /etc/ssh/sshd_config
+  fi
+
+  # Restart sshd.
+  if [ -x /bin/systemctl ]; then
+    # Systemd.
+    systemctl reload sshd
+  elif [ -x /sbin/chkconfig ]; then
+    # System-V on RHEL.
+    service sshd restart
+  else
+    # System-V on Debian.
     service ssh restart
   fi
 fi
