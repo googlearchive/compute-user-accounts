@@ -40,7 +40,6 @@ SOURCES:= \
 FPM_ARGS:= \
   -s dir -n ${PACKAGE_NAME} -v ${VERSION} -a native --license ${LICENSE} \
   -m ${MAINTAINER} --description ${DESCRIPTION} --url ${URL} --vendor ${VENDOR} \
-  -d "libc6 >= ${LIBC_VERSION}" -d "libstdc++6 >= ${LIBSTDCXX_VERSION}" \
   --after-install etc/after-install.sh --before-remove etc/before-remove.sh \
   --after-remove etc/after-remove.sh ${SOURCES}
 
@@ -63,8 +62,12 @@ cover: test
 
 package: build
 	@mkdir -p pkg
-	@fpm -t deb -p pkg/ ${FPM_ARGS}
-#TODO: @fpm -t rpm -p pkg/ ${FPM_ARGS}
+	@fpm -t deb -p pkg/ \
+	  -d "libc6 >= ${LIBC_VERSION}" -d "libstdc++6 >= ${LIBSTDCXX_VERSION}" \
+	  ${FPM_ARGS}
+	@fpm -t rpm -p pkg/ \
+	  -d "glibc >= ${LIBC_VERSION}" -d "libstdc++ >= ${LIBSTDCXX_VERSION}" \
+	  ${FPM_ARGS}
 
 clean:
 	@rm -rf pkg

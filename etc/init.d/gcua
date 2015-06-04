@@ -27,6 +27,7 @@
 NAME="Google Compute User Accounts"
 DAEMON="/usr/share/google/gcua"
 PID_FILE="/var/run/gcua.pid"
+LOG_FILE="/var/log/gcua.log"
 
 get_pid() {
   cat "${PID_FILE}"
@@ -42,7 +43,7 @@ start_daemon() {
     exit 1
   fi
   echo "Starting ${NAME}..."
-  ${DAEMON} &
+  ${DAEMON} 2>&1 >${LOG_FILE} &
   echo ${!} > ${PID_FILE}
   echo "Done"
 }
