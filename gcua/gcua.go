@@ -28,8 +28,6 @@ import (
 	"github.com/GoogleCloudPlatform/compute-user-accounts/store"
 )
 
-const majorVersion = "0"
-
 var (
 	// version is set at compile time.
 	version          string
