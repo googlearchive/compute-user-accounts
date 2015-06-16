@@ -17,7 +17,7 @@ ACCOUNT=gcua
 DIR=/usr/share/google
 
 # Stop daemon.
-if [ -x /bin/systemctl ]; then
+if systemctl status &>/dev/null; then
   # Systemd.
   systemctl --no-reload disable gcua
   systemctl stop gcua
@@ -40,7 +40,7 @@ sed -i "s/AuthorizedKeysCommandUser ${ACCOUNT}//" /etc/ssh/sshd_config
 sed -i "s/AuthorizedKeysCommandRunAs ${ACCOUNT}//" /etc/ssh/sshd_config
 
 # Restart sshd.
-if [ -x /bin/systemctl ]; then
+if systemctl status &>/dev/null; then
   # Systemd.
   systemctl reload sshd
 elif [ -x /sbin/chkconfig ]; then
