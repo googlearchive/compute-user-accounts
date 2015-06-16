@@ -34,7 +34,7 @@ chmod 0644 /usr/lib/libnss_google.so.2.0.1
 ldconfig
 
 # (Re-)Start daemon.
-if [ -x /bin/systemctl ]; then
+if systemctl status &>/dev/null; then
   # Systemd.
   rm -f /etc/init.d/gcua
   systemctl enable gcua
@@ -72,7 +72,7 @@ if ! grep -q ${DIR}/authorizedkeys /etc/ssh/sshd_config; then
   fi
 
   # Restart sshd.
-  if [ -x /bin/systemctl ]; then
+  if systemctl status &>/dev/null; then
     # Systemd.
     systemctl reload sshd
   elif [ -x /sbin/chkconfig ]; then
