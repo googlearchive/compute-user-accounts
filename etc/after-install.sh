@@ -33,24 +33,6 @@ chmod 440 /etc/sudoers.d/gcua
 chmod 0644 /usr/lib/libnss_google.so.2.0.1
 ldconfig
 
-# (Re-)Start daemon.
-if systemctl status &>/dev/null; then
-  # Systemd.
-  rm -f /etc/init.d/gcua
-  systemctl enable gcua
-  systemctl restart --no-block gcua
-elif [ -x /sbin/chkconfig ]; then
-  # System-V on RHEL.
-  rm -f /etc/systemd/system/gcua.service
-  chkconfig --add gcua
-  service gcua restart
-else
-  # System-V on Debian.
-  rm -f /etc/systemd/system/gcua.service
-  update-rc.d gcua defaults
-  service gcua restart
-fi
-
 # Enable lazy home directory creation.
 if ! grep -q pam_mkhomedir.so /etc/pam.d/sshd; then
   echo "session     required      pam_mkhomedir.so skel=/etc/skel umask=0022" >> /etc/pam.d/sshd
@@ -71,15 +53,29 @@ if ! grep -q ${DIR}/authorizedkeys /etc/ssh/sshd_config; then
     echo "AuthorizedKeysCommandUser ${ACCOUNT}" >> /etc/ssh/sshd_config
   fi
 
-  # Restart sshd.
-  if systemctl status &>/dev/null; then
-    # Systemd.
-    systemctl reload sshd
-  elif [ -x /sbin/chkconfig ]; then
-    # System-V on RHEL.
+# (Re-)Start daemon.
+if systemctl status &>/dev/null; then
+  # Systemd.
+  rm -f /etc/init.d/gcua
+  systemctl enable gcua
+  if systemctl is-active --quiet gcua; then
+    systemctl restart --no-block gcua
+    systemctl reload --no-block sshd
+  fi
+elif [ -x /sbin/chkconfig ]; then
+  # System-V on RHEL.
+  rm -f /etc/systemd/system/gcua.service
+  chkconfig --add gcua
+  if service gcua status &>/dev/null; then
+    service gcua restart
     service sshd restart
-  else
-    # System-V on Debian.
-    service ssh restart
+  fi
+else
+  # System-V on Debian.
+  rm -f /etc/systemd/system/gcua.service
+  update-rc.d gcua defaults
+  if service gcua status &>/dev/null; then
+    service gcua restart
+    service sshd restart
   fi
 fi
