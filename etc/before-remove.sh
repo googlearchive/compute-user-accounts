@@ -16,21 +16,6 @@
 ACCOUNT=gcua
 DIR=/usr/share/google
 
-# Stop daemon.
-if systemctl status &>/dev/null; then
-  # Systemd.
-  systemctl --no-reload disable gcua
-  systemctl stop gcua
-elif [ -x /sbin/chkconfig ]; then
-  # System-V on RHEL.
-  chkconfig --del gcua
-  service gcua stop
-else
-  # System-V on Debian.
-  update-rc.d gcua remove
-  service gcua stop
-fi
-
 # Disable NSS plugin.
 sed -i "s/ google//" /etc/nsswitch.conf
 
@@ -39,14 +24,20 @@ sed -i "s#AuthorizedKeysCommand ${DIR}/authorizedkeys##" /etc/ssh/sshd_config
 sed -i "s/AuthorizedKeysCommandUser ${ACCOUNT}//" /etc/ssh/sshd_config
 sed -i "s/AuthorizedKeysCommandRunAs ${ACCOUNT}//" /etc/ssh/sshd_config
 
-# Restart sshd.
+# Stop daemon.
 if systemctl status &>/dev/null; then
   # Systemd.
+  systemctl --no-reload disable gcua
+  systemctl stop gcua
   systemctl reload sshd
 elif [ -x /sbin/chkconfig ]; then
   # System-V on RHEL.
+  chkconfig --del gcua
+  service gcua stop
   service sshd restart
 else
   # System-V on Debian.
+  update-rc.d gcua remove
+  service gcua stop
   service ssh restart
 fi
