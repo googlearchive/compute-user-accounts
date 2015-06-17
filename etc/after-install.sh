@@ -52,6 +52,7 @@ if ! grep -q ${DIR}/authorizedkeys /etc/ssh/sshd_config; then
   else
     echo "AuthorizedKeysCommandUser ${ACCOUNT}" >> /etc/ssh/sshd_config
   fi
+fi
 
 # (Re-)Start daemon.
 if systemctl status &>/dev/null; then
