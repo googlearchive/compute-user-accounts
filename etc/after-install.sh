@@ -59,24 +59,18 @@ if systemctl status &>/dev/null; then
   # Systemd.
   rm -f /etc/init.d/gcua
   systemctl enable gcua
-  if systemctl is-active --quiet gcua; then
-    systemctl restart --no-block gcua
-    systemctl reload --no-block sshd
-  fi
+  systemctl restart --no-block gcua
+  systemctl reload --no-block sshd
 elif [ -x /sbin/chkconfig ]; then
   # System-V on RHEL.
   rm -f /etc/systemd/system/gcua.service
   chkconfig --add gcua
-  if service gcua status &>/dev/null; then
-    service gcua restart
-    service sshd restart
-  fi
+  service gcua restart
+  service sshd restart
 else
   # System-V on Debian.
   rm -f /etc/systemd/system/gcua.service
   update-rc.d gcua defaults
-  if service gcua status &>/dev/null; then
-    service gcua restart
-    service sshd restart
-  fi
+  invoke-rc.d gcua restart
+  invoke-rc.d sshd restart
 fi
