@@ -72,5 +72,5 @@ else
   rm -f /etc/systemd/system/gcua.service
   update-rc.d gcua defaults
   invoke-rc.d gcua restart
-  invoke-rc.d sshd restart
+  invoke-rc.d ssh restart
 fi
