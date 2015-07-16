@@ -37,7 +37,7 @@ var (
 	keyExpiration    = 30 * time.Minute
 	keyCooldown      = 500 * time.Millisecond
 
-	apiBase      = flag.String("computeaccounts", "https://www.googleapis.com/computeaccounts/alpha/", "the URL to the base of the computeaccounts API")
+	apiBase      = flag.String("clouduseraccounts", "https://www.googleapis.com/clouduseraccounts/vm_alpha/", "the URL to the base of the clouduseraccounts API")
 	instanceBase = flag.String("compute", "https://www.googleapis.com/compute/v1/", "the URL to the base of the compute API")
 )
 

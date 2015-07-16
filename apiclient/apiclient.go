@@ -28,14 +28,14 @@ import (
 
 	"github.com/GoogleCloudPlatform/compute-user-accounts/logger"
 
-	computeaccounts "google.golang.org/api/computeaccounts/v0.alpha"
+	cua "google.golang.org/api/clouduseraccounts/vm_alpha"
 )
 
 // An APIClient allows fetching of accounts information from the Compute
 // Accounts API.
 type APIClient interface {
 	// UsersAndGroups fetches information about all users and groups.
-	UsersAndGroups() ([]*computeaccounts.LinuxUserView, []*computeaccounts.LinuxGroupView, error)
+	UsersAndGroups() ([]*cua.LinuxUserView, []*cua.LinuxGroupView, error)
 	// AuthorizedKeys fetches the authorized SSH keys for the given
 	// username.
 	AuthorizedKeys(username string) ([]string, error)
@@ -56,12 +56,12 @@ type Config struct {
 
 type googleAPIClient struct {
 	config  *Config
-	service *computeaccounts.Service
+	service *cua.Service
 }
 
 // New creates a new APIClient with the provided configuration.
 func New(config *Config) (APIClient, error) {
-	service, err := computeaccounts.New(&http.Client{
+	service, err := cua.New(&http.Client{
 		Transport: &oauth2.Transport{Source: google.ComputeTokenSource("")},
 	})
 	if err != nil {
@@ -77,7 +77,7 @@ func New(config *Config) (APIClient, error) {
 }
 
 // UsersAndGroups satisfies APIClient.
-func (c *googleAPIClient) UsersAndGroups() ([]*computeaccounts.LinuxUserView, []*computeaccounts.LinuxGroupView, error) {
+func (c *googleAPIClient) UsersAndGroups() ([]*cua.LinuxUserView, []*cua.LinuxGroupView, error) {
 	logger.Info("Fetching users and groups.")
 	p, z, i, err := c.instanceInfo()
 	if err != nil {

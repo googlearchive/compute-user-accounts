@@ -26,12 +26,12 @@ import (
 
 	_ "net/http/pprof"
 
-	computeaccounts "google.golang.org/api/computeaccounts/v0.alpha"
+	cua "google.golang.org/api/clouduseraccounts/vm_alpha"
 )
 
 type mockAPIClient struct {
-	users            []*computeaccounts.LinuxUserView
-	groups           []*computeaccounts.LinuxGroupView
+	users            []*cua.LinuxUserView
+	groups           []*cua.LinuxGroupView
 	usersGroupsError error
 	usersGroupsCount uint8
 	keys             map[string][]string
@@ -41,7 +41,7 @@ type mockAPIClient struct {
 }
 
 // UsersAndGroups satisfies APIClient.
-func (c *mockAPIClient) UsersAndGroups() ([]*computeaccounts.LinuxUserView, []*computeaccounts.LinuxGroupView, error) {
+func (c *mockAPIClient) UsersAndGroups() ([]*cua.LinuxUserView, []*cua.LinuxGroupView, error) {
 	c.usersGroupsCount++
 	return c.users, c.groups, c.usersGroupsError
 }
@@ -86,8 +86,8 @@ func (s groupSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s groupSlice) Less(i, j int) bool { return s[i].Name < s[j].Name }
 
 var mock = &mockAPIClient{
-	users: []*computeaccounts.LinuxUserView{
-		&computeaccounts.LinuxUserView{
+	users: []*cua.LinuxUserView{
+		&cua.LinuxUserView{
 			Username:      "user1",
 			Uid:           4001,
 			Gid:           4000,
@@ -95,7 +95,7 @@ var mock = &mockAPIClient{
 			HomeDirectory: "/home/user1",
 			Shell:         "/bin/bash",
 		},
-		&computeaccounts.LinuxUserView{
+		&cua.LinuxUserView{
 			Username:      "user2",
 			Uid:           4002,
 			Gid:           4000,
@@ -104,13 +104,13 @@ var mock = &mockAPIClient{
 			Shell:         "/bin/zsh",
 		},
 	},
-	groups: []*computeaccounts.LinuxGroupView{
-		&computeaccounts.LinuxGroupView{
+	groups: []*cua.LinuxGroupView{
+		&cua.LinuxGroupView{
 			GroupName: "group1",
 			Gid:       4000,
 			Members:   []string(nil),
 		},
-		&computeaccounts.LinuxGroupView{
+		&cua.LinuxGroupView{
 			GroupName: "group2",
 			Gid:       4001,
 			Members:   []string{"user2", "user1"},
