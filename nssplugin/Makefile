@@ -13,11 +13,11 @@
 # limitations under the License.
 .PHONY: all build debug test cover mkdir clean rmobj
 
-CC:=g++
-CFLAGS=-Wall -Wextra -O2 -fPIC -D_FORTIFY_SOURCE=2 -fstack-protector-all -Wa,--noexecstack -Wformat -Wformat-security -DSOCKET_PATH="\"$(SOCKET_PATH)\""
-DIRS:=obj bin gtest
-GTEST:=/usr/src/gtest
-SOCKET_PATH:=/var/run/gcua.socket
+CC ?= g++
+CFLAGS ?= -Wall -Wextra -O2 -fPIC -D_FORTIFY_SOURCE=2 -fstack-protector-all -Wa,--noexecstack -Wformat -Wformat-security -DSOCKET_PATH="\"$(SOCKET_PATH)\""
+DIRS := obj bin gtest
+GTEST := /usr/src/gtest
+SOCKET_PATH := /var/run/gcua.socket
 
 all: build
 
