@@ -85,6 +85,7 @@ func (s *Server) handle(conn net.Conn) {
 	if err != nil {
 		logger.Errorf("Failed to write response: %v.", err)
 	}
+	logger.Info("Request completed.")
 }
 
 func (s *Server) respond(req string) string {
@@ -127,7 +128,6 @@ func (s *Server) userByName(args []string) string {
 	if err != nil {
 		return marshalError(err)
 	}
-	logger.Info("Request succeeded.")
 	return fmt.Sprintf("200\n%v", marshalUser(user))
 }
 
@@ -142,7 +142,6 @@ func (s *Server) userByUID(args []string) string {
 	if err != nil {
 		return marshalError(err)
 	}
-	logger.Info("Request succeeded.")
 	return fmt.Sprintf("200\n%v", marshalUser(user))
 }
 
@@ -158,7 +157,6 @@ func (s *Server) users() string {
 		buf.WriteString("\n")
 		buf.WriteString(marshalUser(u))
 	}
-	logger.Info("Request succeeded.")
 	return buf.String()
 }
 
@@ -173,7 +171,6 @@ func (s *Server) groupByName(args []string) string {
 	if err != nil {
 		return marshalError(err)
 	}
-	logger.Info("Request succeeded.")
 	return fmt.Sprintf("200\n%v", marshalGroup(group))
 }
 
@@ -188,7 +185,6 @@ func (s *Server) groupByGID(args []string) string {
 	if err != nil {
 		return marshalError(err)
 	}
-	logger.Info("Request succeeded.")
 	return fmt.Sprintf("200\n%v", marshalGroup(group))
 }
 
@@ -204,7 +200,6 @@ func (s *Server) groups() string {
 		buf.WriteString("\n")
 		buf.WriteString(marshalGroup(g))
 	}
-	logger.Info("Request succeeded.")
 	return buf.String()
 }
 
@@ -220,7 +215,6 @@ func (s *Server) names() string {
 		buf.WriteString("\n")
 		buf.WriteString(n)
 	}
-	logger.Info("Request succeeded.")
 	return buf.String()
 }
 
@@ -260,7 +254,6 @@ func (s *Server) authorizedKeys(args []string) string {
 		buf.WriteString("\n")
 		buf.WriteString(k)
 	}
-	logger.Info("Request succeeded.")
 	return buf.String()
 }
 
