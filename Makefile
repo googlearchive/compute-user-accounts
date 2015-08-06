@@ -41,7 +41,7 @@ FPM_ARGS:= \
   -s dir -n ${PACKAGE_NAME} -v ${VERSION} -a native --license ${LICENSE} \
   -m ${MAINTAINER} --description ${DESCRIPTION} --url ${URL} --vendor ${VENDOR} \
   --after-install etc/after-install.sh --before-remove etc/before-remove.sh \
-  --after-remove etc/after-remove.sh ${SOURCES}
+  --after-remove etc/after-remove.sh --config-files etc/ ${SOURCES}
 
 all: build
 
