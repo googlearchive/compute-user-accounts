@@ -30,12 +30,12 @@ import (
 
 var (
 	// version is set at compile time.
-	version          string
-	userAgent        = fmt.Sprintf("gcua/%v", version)
-	refreshFrequency = 4 * time.Minute
-	refreshCooldown  = 5 * time.Second
-	keyExpiration    = 30 * time.Minute
-	keyCooldown      = 500 * time.Millisecond
+	version                 string
+	userAgent               = fmt.Sprintf("gcua/%v", version)
+	accountRefreshFrequency = time.Minute
+	accountRefreshCooldown  = time.Second
+	keyRefreshFrequency     = 30 * time.Minute
+	keyRefreshCooldown      = 500 * time.Millisecond
 
 	apiBase      = flag.String("clouduseraccounts", "https://www.googleapis.com/clouduseraccounts/vm_alpha/", "the URL to the base of the clouduseraccounts API")
 	instanceBase = flag.String("compute", "https://www.googleapis.com/compute/v1/", "the URL to the base of the compute API")
@@ -55,10 +55,10 @@ func main() {
 		logger.Fatalf("Init failed: %v.", err)
 	}
 	srv := &server.Server{store.New(api, &store.Config{
-		RefreshFrequency: refreshFrequency,
-		RefreshCooldown:  refreshCooldown,
-		KeyExpiration:    keyExpiration,
-		KeyCooldown:      keyCooldown,
+		AccountRefreshFrequency: accountRefreshFrequency,
+		AccountRefreshCooldown:  accountRefreshCooldown,
+		KeyRefreshFrequency:     keyRefreshFrequency,
+		KeyRefreshCooldown:      keyRefreshCooldown,
 	})}
 	go func() {
 		err := srv.Serve()

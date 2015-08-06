@@ -16,7 +16,6 @@ package store
 
 import (
 	"errors"
-	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -119,10 +118,20 @@ var mock = &mockAPIClient{
 	keys: testbase.ExpKeys,
 }
 
+func testStore(mock *mockAPIClient, config *Config) accounts.AccountProvider {
+	ch := make(chan struct{})
+	// Ensure keys are warmed.
+	keyRefreshCallback = func() { close(ch) }
+	store := New(mock, config)
+	<-ch
+	keyRefreshCallback = func() {}
+	return store
+}
+
 func TestUsersGroups(t *testing.T) {
 	mock.Clear()
 	config := &Config{time.Hour, time.Hour, time.Hour, 0}
-	store := New(mock, config)
+	store := testStore(mock, config)
 	testbase.RunCases(t, []testbase.TestCase{
 		&testbase.SuccessCase{
 			`UserByName("user1")`,
@@ -195,13 +204,14 @@ func TestUsersGroups(t *testing.T) {
 			"unable to find group with GID 1",
 		},
 	})
-	mock.AssertCalls(t, 1, 0)
+	// First refresh and key prewarm.
+	mock.AssertCalls(t, 1, 2)
 }
 
 func TestKeysBasicCase(t *testing.T) {
 	mock.Clear()
 	config := &Config{time.Hour, time.Hour, time.Hour, 0}
-	store := New(mock, config)
+	store := testStore(mock, config)
 	testbase.RunCases(t, []testbase.TestCase{
 		&testbase.SuccessCase{
 			`AuthorizedKeys("user1")`,
@@ -219,7 +229,66 @@ func TestKeysBasicCase(t *testing.T) {
 			`unable to find user with name "user3"`,
 		},
 	})
+	// Prewarm and on-demand key fetches.
+	mock.AssertCalls(t, 1, 4)
+}
+
+func TestKeyPrewarmingAndCaching(t *testing.T) {
+	mock.Clear()
+	// Background key refreshes happen every second.
+	config := &Config{time.Hour, time.Hour, time.Hour, 0}
+	store := testStore(mock, config)
+	mock.keysError = errors.New("API error")
+	testbase.RunCases(t, []testbase.TestCase{
+		&testbase.SuccessCase{
+			`AuthorizedKeys("user1")`,
+			func() (interface{}, error) { return store.AuthorizedKeys("user1") },
+			testbase.ExpKeys["user1"],
+		},
+		&testbase.SuccessCase{
+			`AuthorizedKeys("user2")`,
+			func() (interface{}, error) { return store.AuthorizedKeys("user2") },
+			[]string(nil),
+		},
+	})
+	mock.AssertCalls(t, 1, 4)
+}
+
+func TestKeyCooldownAndRefresh(t *testing.T) {
+	mTime := time.Now().UTC()
+	// Mock time.
+	utcTime = func() time.Time { return mTime }
+	pulse := make(chan time.Time)
+	pulseAfter = func(time.Duration) <-chan time.Time { return pulse }
+	mock.Clear()
+	// Background key refreshes happen every second.
+	config := &Config{time.Hour, 0, time.Second, 0}
+	store := testStore(mock, config)
+	testbase.RunCases(t, []testbase.TestCase{
+		&testbase.SuccessCase{
+			`AuthorizedKeys("user1")`,
+			func() (interface{}, error) { return store.AuthorizedKeys("user1") },
+			testbase.ExpKeys["user1"],
+		},
+		&testbase.SuccessCase{
+			`AuthorizedKeys("user2")`,
+			func() (interface{}, error) { return store.AuthorizedKeys("user2") },
+			[]string(nil),
+		},
+	})
 	mock.AssertCalls(t, 1, 2)
+
+	mTime = mTime.Add(time.Second + time.Nanosecond)
+	ch := make(chan struct{})
+	keyRefreshCallback = func() { close(ch) }
+	// Trigger refresh.
+	pulse <- mTime
+	<-ch
+	keyRefreshCallback = func() {}
+	mock.AssertCalls(t, 2, 4)
+
+	pulseAfter = time.After
+	utcTime = func() time.Time { return time.Now().UTC() }
 }
 
 func TestUserOnDemandRefresh(t *testing.T) {
@@ -227,7 +296,7 @@ func TestUserOnDemandRefresh(t *testing.T) {
 	mock.usersGroupsError = errors.New("")
 	// No cooldown.
 	config := &Config{time.Hour, 0, time.Hour, 0}
-	store := New(mock, config)
+	store := testStore(mock, config)
 	testbase.RunCases(t, []testbase.TestCase{
 		&testbase.FailureCase{
 			`UserByName("user1")`,
@@ -236,6 +305,9 @@ func TestUserOnDemandRefresh(t *testing.T) {
 		},
 	})
 	mock.usersGroupsError = nil
+	ch := make(chan struct{})
+	// Ensure keys are refreshed.
+	keyRefreshCallback = func() { close(ch) }
 	testbase.RunCases(t, []testbase.TestCase{
 		&testbase.SuccessCase{
 			`UserByName("user1")`,
@@ -243,8 +315,10 @@ func TestUserOnDemandRefresh(t *testing.T) {
 			testbase.ExpUsers[0],
 		},
 	})
+	<-ch
+	keyRefreshCallback = func() {}
 	// First update and twice for missing username.
-	mock.AssertCalls(t, 3, 0)
+	mock.AssertCalls(t, 3, 2)
 }
 
 func TestGroupOnDemandRefresh(t *testing.T) {
@@ -252,11 +326,11 @@ func TestGroupOnDemandRefresh(t *testing.T) {
 	mock.usersGroupsError = errors.New("")
 	// No cooldown.
 	config := &Config{time.Hour, 0, time.Hour, 0}
-	store := New(mock, config)
+	store := testStore(mock, config)
 	mock.usersGroupsError = nil
-	// Cache refresh callback.
+
 	ch := make(chan struct{})
-	refreshCallback = func() { close(ch) }
+	accountRefreshCallback = func() { close(ch) }
 	testbase.RunCases(t, []testbase.TestCase{
 		&testbase.FailureCase{
 			`GroupByName("group1")`,
@@ -265,7 +339,10 @@ func TestGroupOnDemandRefresh(t *testing.T) {
 		},
 	})
 	<-ch
-	refreshCallback = func() {}
+	accountRefreshCallback = func() {}
+	ch = make(chan struct{})
+	// Ensure keys are refreshed.
+	keyRefreshCallback = func() { close(ch) }
 	testbase.RunCases(t, []testbase.TestCase{
 		&testbase.SuccessCase{
 			`GroupByName("group1")`,
@@ -273,91 +350,15 @@ func TestGroupOnDemandRefresh(t *testing.T) {
 			testbase.ExpGroups[0],
 		},
 	})
-	// First update and once for missing username.
-	mock.AssertCalls(t, 2, 0)
-}
-
-func TestCachedKeyCooldownAndExpiration(t *testing.T) {
-	mock.Clear()
-	// Keys expire after two seconds and dont fetch again for one second.
-	config := &Config{time.Hour, time.Hour, 2 * time.Second, time.Second}
-	store := New(mock, config)
-	mTime := time.Now().UTC()
-	// Mock time.
-	utcTime = func() time.Time { return mTime }
-	testbase.RunCases(t, []testbase.TestCase{
-		&testbase.SuccessCase{
-			`AuthorizedKeys("user1")`,
-			func() (interface{}, error) { return store.AuthorizedKeys("user1") },
-			testbase.ExpKeys["user1"],
-		},
-	})
-	// This should not result in a call to the API.
-	testbase.RunCases(t, []testbase.TestCase{
-		&testbase.SuccessCase{
-			`AuthorizedKeys("user1")`,
-			func() (interface{}, error) { return store.AuthorizedKeys("user1") },
-			testbase.ExpKeys["user1"],
-		},
-	})
-	mTime = mTime.Add(time.Second + time.Nanosecond)
-	mock.keysError = errors.New("API error")
-	testbase.RunCases(t, []testbase.TestCase{
-		&testbase.SuccessCase{
-			`AuthorizedKeys("user1")`,
-			func() (interface{}, error) { return store.AuthorizedKeys("user1") },
-			testbase.ExpKeys["user1"],
-		},
-	})
-	mTime = mTime.Add(time.Second)
-	testbase.RunCases(t, []testbase.TestCase{
-		&testbase.FailureCase{
-			`AuthorizedKeys("user1")`,
-			func() (interface{}, error) { return store.AuthorizedKeys("user1") },
-			"API error",
-		},
-	})
-	mock.AssertCalls(t, 1, 3)
-}
-
-func TestRefreshKeyRemoval(t *testing.T) {
-	mock.Clear()
-	// Mock time.
-	mTime := time.Now().UTC()
-	utcTime = func() time.Time { return mTime }
-	pulse := make(chan time.Time)
-	pulseAfter = func(d time.Duration) <-chan time.Time { return pulse }
-	// Refresh after a second, no cooldown, expire keys after a second.
-	config := &Config{time.Second, 0, time.Second, 0}
-	store := New(mock, config)
-	testbase.RunCases(t, []testbase.TestCase{
-		&testbase.SuccessCase{
-			`AuthorizedKeys("user1")`,
-			func() (interface{}, error) { return store.AuthorizedKeys("user1") },
-			testbase.ExpKeys["user1"],
-		},
-	})
-	keyMap := reflect.ValueOf(store).Elem().FieldByName("keysByUsername")
-	if keyMap.Len() != 1 {
-		t.Errorf("key not cached")
-	}
-	// Cache refresh callback.
-	ch := make(chan struct{})
-	refreshCallback = func() { close(ch) }
-	mTime = mTime.Add(time.Second + time.Nanosecond)
-	pulse <- mTime
 	<-ch
-	refreshCallback = func() {}
-	if keyMap.Len() != 0 {
-		t.Errorf("key not removed")
-	}
-	mock.AssertCalls(t, 2, 1)
+	keyRefreshCallback = func() {}
+	// First update and once for missing username.
+	mock.AssertCalls(t, 2, 2)
 }
-
 func TestEmptyUsersGroups(t *testing.T) {
 	emptyMock := &mockAPIClient{}
 	config := &Config{time.Hour, time.Hour, time.Hour, 0}
-	store := New(emptyMock, config)
+	store := testStore(emptyMock, config)
 	testbase.RunCases(t, []testbase.TestCase{
 		&testbase.SuccessCase{
 			"Names()",
@@ -371,7 +372,7 @@ func TestEmptyUsersGroups(t *testing.T) {
 func TestEmptyKeys(t *testing.T) {
 	emptyMock := &mockAPIClient{users: mock.users}
 	config := &Config{time.Hour, time.Hour, time.Hour, 0}
-	store := New(emptyMock, config)
+	store := testStore(emptyMock, config)
 	testbase.RunCases(t, []testbase.TestCase{
 		&testbase.SuccessCase{
 			`AuthorizedKeys("user1")`,
@@ -379,5 +380,5 @@ func TestEmptyKeys(t *testing.T) {
 			[]string(nil),
 		},
 	})
-	emptyMock.AssertCalls(t, 1, 1)
+	emptyMock.AssertCalls(t, 1, 3)
 }
