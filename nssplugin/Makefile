@@ -13,21 +13,21 @@
 # limitations under the License.
 .PHONY: all build debug test cover mkdir clean rmobj
 
-CC ?= g++
-CFLAGS ?= -Wall -Wextra -O2 -fPIC -D_FORTIFY_SOURCE=2 -fstack-protector-all -Wa,--noexecstack -Wformat -Wformat-security -DSOCKET_PATH="\"$(SOCKET_PATH)\""
-DIRS := obj bin gtest
-GTEST := /usr/src/gtest
-SOCKET_PATH := /var/run/gcua.socket
+CXX?=g++
+CXXFLAGS?=-Wall -Wextra -O2 -fPIC -D_FORTIFY_SOURCE=2 -fstack-protector-all -Wa,--noexecstack -Wformat -Wformat-security -DSOCKET_PATH="\"$(SOCKET_PATH)\""
+DIRS:=obj bin gtest
+GTEST:=/usr/src/gtest
+SOCKET_PATH:=/var/run/gcua.socket
 
 all: build
 
 build: rmobj mkdir bin/libnss_google.so.2.0.1
 
-debug: CFLAGS:=$(CFLAGS:-O2=-ggdb)
+debug: CXXFLAGS:=$(CXXFLAGS:-O2=-ggdb)
 debug: build
 
 test: SOCKET_PATH:=/tmp/compute_accounts_utils_test
-test: CFLAGS:=$(CFLAGS:-O2=-ggdb) -fprofile-arcs -ftest-coverage
+test: CXXFLAGS:=$(CXXFLAGS:-O2=-ggdb) -fprofile-arcs -ftest-coverage
 test: rmobj mkdir bin/utils_test
 	@bin/utils_test --gtest_color=yes
 
@@ -46,18 +46,18 @@ rmobj:
 
 # Link
 bin/libnss_google.so.2.0.1: obj/libnss_google.o obj/utils.o
-	$(CC) -o $@ -shared -Wl,-soname,libnss_google.so.2,-z,relro,-z,now $^
+	$(CXX) -o $@ -shared -Wl,-soname,libnss_google.so.2,-z,relro,-z,now $^
 
 bin/utils_test: gtest/gtest-all.o gtest/gtest_main.o obj/utils_test.o obj/utils.o
-	$(CC) -o $@ $^ -lpthread -lgcov
+	$(CXX) -o $@ $^ -lpthread -lgcov
 
 # Compile
 obj/%.o: %.cc
-	$(CC) -o $@ -c $(CFLAGS) $^
+	$(CXX) -o $@ -c $(CXXFLAGS) $^
 
 # GTest Compile
 gtest/gtest-all.o: $(GTEST)/src/gtest-all.cc
-	$(CC) -o $@ -c -I$(GTEST) $^
+	$(CXX) -o $@ -c -I$(GTEST) $^
 
 gtest/gtest_main.o: $(GTEST)/src/gtest_main.cc
-	$(CC) -o $@ -c -I$(GTEST) $^
+	$(CXX) -o $@ -c -I$(GTEST) $^
