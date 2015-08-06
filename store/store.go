@@ -214,7 +214,7 @@ func (s *cachingStore) GroupByName(name string) (*accounts.Group, error) {
 	}
 	ch := make(chan struct{})
 	logger.Info("Triggering refresh due to missing group.")
-	s.updateWaiters <- ch
+	go func() { s.updateWaiters <- ch }()
 	// Do not block on update.
 	return nil, accounts.GroupNameNotFound(name)
 }
