@@ -24,60 +24,61 @@ import (
 	"github.com/GoogleCloudPlatform/compute-user-accounts/logger"
 )
 
-// utcTime allows dependency injection for testing.
-var utcTime = func() time.Time { return time.Now().UTC() }
-
-// pulseAfter allows dependency injection for testing.
-var pulseAfter = func(d time.Duration) <-chan time.Time { return time.After(d) }
-
-// refreshCallback exposes a testing callback invoked when the store has
-// refreshed user and group data.
-var refreshCallback = func() {}
+// These are mocked in tests.
+var (
+	utcTime    = func() time.Time { return time.Now().UTC() }
+	pulseAfter = time.After
+	// accountRefreshCallback exposes a testing callback invoked when the
+	// store has refreshed user and group data.
+	accountRefreshCallback = func() {}
+	// keyRefreshCallback exposes a testing callback invoked when the store
+	// has refreshed all key data.
+	keyRefreshCallback = func() {}
+)
 
 // A Config provides configuration options for a store AccountProvider.
 type Config struct {
-	// RefreshFrequency defines how often to perform scheduled refreshes of
-	// user and group information.
-	RefreshFrequency time.Duration
-	// RefreshCooldown defines how long to block on-demand refreshes after a
-	// refresh.
-	RefreshCooldown time.Duration
-	// KeyExpiration defines how long to cache authorized keys in case of
-	// inability to communicate with the Compute Accounts API.
-	KeyExpiration time.Duration
-	// KeyCooldown defines how long to serve authorized keys from the cache
-	// after they are fetched.
-	KeyCooldown time.Duration
+	// AccountRefreshFrequency defines how often to perform scheduled
+	// refreshes of user and group information.
+	AccountRefreshFrequency time.Duration
+	// AccountRefreshCooldown defines how long to block on-demand refreshes
+	// of user and group information after a refresh.
+	AccountRefreshCooldown time.Duration
+	// KeyRefreshFrequency defines how often to perform scheduled refreshes
+	// of authorized keys information.
+	KeyRefreshFrequency time.Duration
+	// KeyRefreshCooldown defines how long to block on-demand refreshes of
+	// authorized keys information after a refresh.
+	KeyRefreshCooldown time.Duration
 }
 
-type cachedKeys struct {
-	values       []string
-	creationTime time.Time
+type cachedUser struct {
+	user           *accounts.User
+	keys           []string
+	keyRefreshTime time.Time
 }
 
 // cachingStore implements AccountProvider as an in-memory store.
 type cachingStore struct {
 	sync.RWMutex
-	apiClient      apiclient.APIClient
-	config         *Config
-	updateWaiters  chan chan struct{}
-	usersByName    map[string]*accounts.User
-	usersByUID     map[uint32]*accounts.User
-	groupsByName   map[string]*accounts.Group
-	groupsByGID    map[uint32]*accounts.Group
-	keysByUsername map[string]*cachedKeys
+	apiClient     apiclient.APIClient
+	config        *Config
+	updateWaiters chan chan struct{}
+	usersByName   map[string]*cachedUser
+	usersByUID    map[uint32]*cachedUser
+	groupsByName  map[string]*accounts.Group
+	groupsByGID   map[uint32]*accounts.Group
 }
 
 // New returns an AccountProvider implemented as an in-memory store.
 func New(apiClient apiclient.APIClient, config *Config) accounts.AccountProvider {
 	store := &cachingStore{
-		apiClient:      apiClient,
-		config:         config,
-		updateWaiters:  make(chan chan struct{}),
-		keysByUsername: make(map[string]*cachedKeys),
+		apiClient:     apiClient,
+		config:        config,
+		updateWaiters: make(chan chan struct{}),
 	}
-	go updateTask(store)
 	ch := make(chan struct{})
+	go updateTask(store)
 	store.updateWaiters <- ch
 	<-ch
 	return store
@@ -95,21 +96,22 @@ func updateTask(s *cachingStore) {
 		var ch chan struct{}
 		select {
 		case ch = <-s.updateWaiters:
-		case <-pulseAfter(s.config.RefreshFrequency):
+		case <-pulseAfter(s.config.AccountRefreshFrequency):
 		}
-		if nowOutsideTimespan(lastRefresh, s.config.RefreshCooldown) {
+		if nowOutsideTimespan(lastRefresh, s.config.AccountRefreshCooldown) {
 			logger.Info("Refreshing users and groups.")
-			updateCache(s)
+			updateAccounts(s)
 			lastRefresh = utcTime()
 		}
-		refreshCallback()
+		accountRefreshCallback()
 		if ch != nil {
 			close(ch)
 		}
 	}
 }
 
-func updateCache(s *cachingStore) {
+func updateAccounts(s *cachingStore) {
+	defer func() { go updateKeys(s) }()
 	users, groups, err := s.apiClient.UsersAndGroups()
 	if err != nil {
 		logger.Errorf("Failed refresh: %v.", err)
@@ -117,8 +119,9 @@ func updateCache(s *cachingStore) {
 	}
 	s.Lock()
 	defer s.Unlock()
-	s.usersByName = make(map[string]*accounts.User)
-	s.usersByUID = make(map[uint32]*accounts.User)
+	oldUsers := s.usersByName
+	s.usersByName = make(map[string]*cachedUser)
+	s.usersByUID = make(map[uint32]*cachedUser)
 	s.groupsByName = make(map[string]*accounts.Group)
 	s.groupsByGID = make(map[uint32]*accounts.Group)
 	for _, u := range users {
@@ -130,8 +133,13 @@ func updateCache(s *cachingStore) {
 			HomeDirectory: u.HomeDirectory,
 			Shell:         u.Shell,
 		}
-		s.usersByName[user.Name] = user
-		s.usersByUID[user.UID] = user
+		cu := &cachedUser{user: user}
+		if old, ok := oldUsers[user.Name]; ok {
+			cu.keyRefreshTime = old.keyRefreshTime
+			cu.keys = old.keys
+		}
+		s.usersByName[user.Name] = cu
+		s.usersByUID[user.UID] = cu
 	}
 	for _, g := range groups {
 		group := &accounts.Group{
@@ -142,40 +150,80 @@ func updateCache(s *cachingStore) {
 		s.groupsByName[group.Name] = group
 		s.groupsByGID[group.GID] = group
 	}
-	for u, k := range s.keysByUsername {
-		_, ok := s.keysByUsername[u]
-		if !ok || s.areKeysExpired(k) {
-			delete(s.keysByUsername, u)
+	logger.Info("Refreshing users and groups succeeded.")
+}
+
+func updateKeys(s *cachingStore) {
+	type update struct {
+		name string
+		keys []string
+		err  error
+		time time.Time
+	}
+	ch := make(chan update, 16)
+	workers := 0
+	for _, name := range keysRequiringRefresh(s) {
+		go func(n string) {
+			keys, err := s.apiClient.AuthorizedKeys(n)
+			ch <- update{n, keys, err, utcTime()}
+		}(name)
+		workers += 1
+	}
+	refreshedKeys := make([]update, workers)
+	for workers != 0 {
+		up := <-ch
+		workers -= 1
+		if up.err != nil {
+			logger.Errorf("Failed key refresh for %v: %v.", up.name, up.err)
+			continue
+		}
+		logger.Infof("Refreshed keys for %v.", up.name)
+		refreshedKeys = append(refreshedKeys, up)
+	}
+	s.Lock()
+	defer s.Unlock()
+	for _, rk := range refreshedKeys {
+		if cu, ok := s.usersByName[rk.name]; ok {
+			cu.keys = rk.keys
+			cu.keyRefreshTime = rk.time
 		}
 	}
-	logger.Info("Refreshing succeeded.")
+	keyRefreshCallback()
 }
 
-func (s *cachingStore) areKeysExpired(keys *cachedKeys) bool {
-	return nowOutsideTimespan(keys.creationTime, s.config.KeyExpiration)
-}
-
-func (s *cachingStore) userByNameImpl(name string) (*accounts.User, bool) {
+func keysRequiringRefresh(s *cachingStore) []string {
+	var result []string
 	s.RLock()
 	defer s.RUnlock()
-	u, ok := s.usersByName[name]
-	return u, ok
+	for name, cu := range s.usersByName {
+		if nowOutsideTimespan(cu.keyRefreshTime, s.config.KeyRefreshFrequency) {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+
+func (s *cachingStore) userByNameImpl(name string) (*cachedUser, bool) {
+	s.RLock()
+	defer s.RUnlock()
+	cu, ok := s.usersByName[name]
+	return cu, ok
 }
 
 // UserByName satisfies AccountProvider.
 func (s *cachingStore) UserByName(name string) (*accounts.User, error) {
-	u, ok := s.userByNameImpl(name)
+	cu, ok := s.userByNameImpl(name)
 	if ok {
-		return u, nil
+		return cu.user, nil
 	}
 	ch := make(chan struct{})
-	logger.Info("Triggering refresh due to missing user.")
+	logger.Infof("Triggering refresh due to missing user %v.", name)
 	s.updateWaiters <- ch
 	// Block on update.
 	<-ch
-	u, ok = s.userByNameImpl(name)
+	cu, ok = s.userByNameImpl(name)
 	if ok {
-		return u, nil
+		return cu.user, nil
 	}
 	return nil, accounts.UsernameNotFound(name)
 }
@@ -184,9 +232,9 @@ func (s *cachingStore) UserByName(name string) (*accounts.User, error) {
 func (s *cachingStore) UserByUID(uid uint32) (*accounts.User, error) {
 	s.RLock()
 	defer s.RUnlock()
-	u, ok := s.usersByUID[uid]
+	cu, ok := s.usersByUID[uid]
 	if ok {
-		return u, nil
+		return cu.user, nil
 	}
 	return nil, accounts.UIDNotFound(uid)
 }
@@ -197,8 +245,8 @@ func (s *cachingStore) Users() ([]*accounts.User, error) {
 	defer s.RUnlock()
 	ret := make([]*accounts.User, len(s.usersByName))
 	i := 0
-	for _, u := range s.usersByName {
-		ret[i] = u
+	for _, cu := range s.usersByName {
+		ret[i] = cu.user
 		i++
 	}
 	return ret, nil
@@ -271,45 +319,26 @@ func (s *cachingStore) IsName(name string) (bool, error) {
 
 // AuthorizedKeys satisfies AccountProvider.
 func (s *cachingStore) AuthorizedKeys(username string) ([]string, error) {
-	_, ok := s.userByNameImpl(username)
+	cu, ok := s.userByNameImpl(username)
 	if !ok {
 		return nil, accounts.UsernameNotFound(username)
+	} else if !nowOutsideTimespan(cu.keyRefreshTime, s.config.KeyRefreshCooldown) {
+		logger.Infof("Returning cached keys for %v due to cooldown.", username)
+		return cu.keys, nil
 	}
-	cacheEntry := s.cachedKeys(username)
-	var cachedKeys []string
-	if cacheEntry == nil {
-		cachedKeys = nil
-	} else if !nowOutsideTimespan(cacheEntry.creationTime, s.config.KeyCooldown) {
-		logger.Infof("Returning cached keys due to cooldown.")
-		return cacheEntry.values, nil
-	} else {
-		cachedKeys = cacheEntry.values
-	}
-	// If the API returns 404 this will return a nil slice, not an error.
 	keys, err := s.apiClient.AuthorizedKeys(username)
-	if err == nil {
-		s.updateCachedKeys(username, keys)
-		return keys, nil
+	if err != nil {
+		return cu.keys, nil
 	}
-	if cachedKeys != nil {
-		logger.Noticef("Returning cached keys due to failure: %v.", err)
-		return cachedKeys, nil
-	}
-	return nil, err
+	go s.updateCachedKeys(username, keys, utcTime())
+	return keys, nil
 }
 
-func (s *cachingStore) updateCachedKeys(username string, keys []string) {
+func (s *cachingStore) updateCachedKeys(username string, keys []string, refreshTime time.Time) {
 	s.Lock()
 	defer s.Unlock()
-	s.keysByUsername[username] = &cachedKeys{keys, utcTime()}
-}
-
-func (s *cachingStore) cachedKeys(username string) *cachedKeys {
-	s.RLock()
-	defer s.RUnlock()
-	keys, ok := s.keysByUsername[username]
-	if ok && !s.areKeysExpired(keys) {
-		return keys
+	if cu, ok := s.usersByName[username]; ok {
+		cu.keys = keys
+		cu.keyRefreshTime = refreshTime
 	}
-	return nil
 }
