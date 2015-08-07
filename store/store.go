@@ -26,8 +26,8 @@ import (
 
 // These are mocked in tests.
 var (
-	utcTime    = func() time.Time { return time.Now().UTC() }
-	pulseAfter = time.After
+	timeNow   = time.Now
+	timeAfter = time.After
 	// accountRefreshCallback exposes a testing callback invoked when the
 	// store has refreshed user and group data.
 	accountRefreshCallback = func() {}
@@ -85,7 +85,7 @@ func New(apiClient apiclient.APIClient, config *Config) accounts.AccountProvider
 }
 
 func nowOutsideTimespan(start time.Time, duration time.Duration) bool {
-	now := utcTime()
+	now := timeNow()
 	end := start.Add(duration)
 	return now.Before(start) || now.After(end)
 }
@@ -96,12 +96,12 @@ func updateTask(s *cachingStore) {
 		var ch chan struct{}
 		select {
 		case ch = <-s.updateWaiters:
-		case <-pulseAfter(s.config.AccountRefreshFrequency):
+		case <-timeAfter(s.config.AccountRefreshFrequency):
 		}
 		if nowOutsideTimespan(lastRefresh, s.config.AccountRefreshCooldown) {
 			logger.Info("Refreshing users and groups.")
 			updateAccounts(s)
-			lastRefresh = utcTime()
+			lastRefresh = timeNow()
 		}
 		accountRefreshCallback()
 		if ch != nil {
@@ -165,7 +165,7 @@ func updateKeys(s *cachingStore) {
 	for _, name := range keysRequiringRefresh(s) {
 		go func(n string) {
 			keys, err := s.apiClient.AuthorizedKeys(n)
-			ch <- update{n, keys, err, utcTime()}
+			ch <- update{n, keys, err, timeNow()}
 		}(name)
 		workers += 1
 	}
@@ -330,7 +330,7 @@ func (s *cachingStore) AuthorizedKeys(username string) ([]string, error) {
 	if err != nil {
 		return cu.keys, nil
 	}
-	go s.updateCachedKeys(username, keys, utcTime())
+	go s.updateCachedKeys(username, keys, timeNow())
 	return keys, nil
 }
 

@@ -257,9 +257,9 @@ func TestKeyPrewarmingAndCaching(t *testing.T) {
 func TestKeyCooldownAndRefresh(t *testing.T) {
 	mTime := time.Now().UTC()
 	// Mock time.
-	utcTime = func() time.Time { return mTime }
+	timeNow = func() time.Time { return mTime }
 	pulse := make(chan time.Time)
-	pulseAfter = func(time.Duration) <-chan time.Time { return pulse }
+	timeAfter = func(time.Duration) <-chan time.Time { return pulse }
 	mock.Clear()
 	// Background key refreshes happen every second.
 	config := &Config{time.Hour, 0, time.Second, 0}
@@ -287,8 +287,8 @@ func TestKeyCooldownAndRefresh(t *testing.T) {
 	keyRefreshCallback = func() {}
 	mock.AssertCalls(t, 2, 4)
 
-	pulseAfter = time.After
-	utcTime = func() time.Time { return time.Now().UTC() }
+	timeAfter = time.After
+	timeNow = time.Now
 }
 
 func TestUserOnDemandRefresh(t *testing.T) {
