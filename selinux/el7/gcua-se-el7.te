@@ -1,0 +1,85 @@
+policy_module(gcua-se-el7, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type gcua-se-el7_t;
+type gcua-se-el7_exec_t;
+init_daemon_domain(gcua-se-el7_t, gcua-se-el7_exec_t)
+
+# permissive gcua-se-el7_t;
+
+type gcua-se-el7_unit_file_t;
+systemd_unit_file(gcua-se-el7_unit_file_t)
+
+########################################
+#
+# gcua-se-el7 local policy
+#
+allow gcua-se-el7_t self:fifo_file rw_fifo_file_perms;
+allow gcua-se-el7_t self:unix_stream_socket create_stream_socket_perms;
+
+domain_use_interactive_fds(gcua-se-el7_t)
+
+files_read_etc_files(gcua-se-el7_t)
+
+auth_use_nsswitch(gcua-se-el7_t)
+
+miscfiles_read_localization(gcua-se-el7_t)
+
+sysnet_dns_name_resolve(gcua-se-el7_t)
+
+require {
+	type unconfined_t;
+	type var_run_t;
+	type systemd_logind_t;
+	type gcua-se-el7_t;
+	type system_dbusd_t;
+	type var_log_t;
+	type sshd_t;
+	type chkpwd_t;
+	type oddjob_mkhomedir_exec_t;
+	class unix_stream_socket connectto;
+	class capability net_admin;
+	class file { write entrypoint };
+	class capability2 block_suspend;
+	class sock_file { write create unlink setattr };
+	class unix_dgram_socket { getattr create connect setopt };
+}
+
+#============= chkpwd_t ==============
+allow chkpwd_t gcua-se-el7_t:unix_stream_socket connectto;
+allow chkpwd_t var_run_t:sock_file write;
+
+#============= gcua-se-el7_t ==============
+allow gcua-se-el7_t self:capability net_admin;
+allow gcua-se-el7_t self:capability2 block_suspend;
+allow gcua-se-el7_t self:unix_dgram_socket { connect getattr create setopt };
+allow gcua-se-el7_t var_log_t:file write;
+allow gcua-se-el7_t var_run_t:sock_file { create unlink setattr };
+auth_use_nsswitch(gcua-se-el7_t)
+corenet_tcp_connect_http_port(gcua-se-el7_t)
+files_manage_generic_pids_symlinks(gcua-se-el7_t)
+kernel_dgram_send(gcua-se-el7_t)
+kernel_read_unix_sysctls(gcua-se-el7_t)
+logging_create_devlog_dev(gcua-se-el7_t)
+virt_sandbox_domain(gcua-se-el7_t)
+
+#============= sshd_t ==============
+
+allow sshd_t gcua-se-el7_t:unix_stream_socket connectto;
+allow sshd_t var_run_t:sock_file write;
+
+#============= system_dbusd_t ==============
+allow system_dbusd_t gcua-se-el7_t:unix_stream_socket connectto;
+allow system_dbusd_t var_run_t:sock_file write;
+
+#============= systemd_logind_t ==============
+
+allow systemd_logind_t gcua-se-el7_t:unix_stream_socket connectto;
+allow systemd_logind_t var_run_t:sock_file write;
+
+#============= unconfined_t ==============
+allow unconfined_t oddjob_mkhomedir_exec_t:file entrypoint;
