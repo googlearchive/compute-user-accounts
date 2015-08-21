@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -52,6 +53,9 @@ type Config struct {
 	// UserAgent is the user-agent string that will be sent to the Compute
 	// Accounts API.
 	UserAgent string
+	// Timeout is the amount of time a request sent to the API has to
+	// complete before it fails.
+	Timeout time.Duration
 }
 
 type googleAPIClient struct {
@@ -63,6 +67,7 @@ type googleAPIClient struct {
 func New(config *Config) (APIClient, error) {
 	service, err := cua.New(&http.Client{
 		Transport: &oauth2.Transport{Source: google.ComputeTokenSource("")},
+		Timeout:   config.Timeout,
 	})
 	if err != nil {
 		return nil, err

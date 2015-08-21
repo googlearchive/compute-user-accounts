@@ -18,8 +18,9 @@ DIR=/usr/share/google
 
 # Add user account and script directory.
 if ! grep -q ${ACCOUNT} /etc/passwd; then
-  # Force useradd to start allocating local users in the 50000 range.
-  useradd --system --user-group --uid 50000 --comment "UID is 50000 to avoid UID collisions for new local users" ${ACCOUNT}
+  # Force useradd/groupadd to start allocating local users/groups in the 50000 range.
+  groupadd --system --gid 50000 ${ACCOUNT}
+  useradd --system --uid 50000 --gid 50000 --comment "U/GID is 50000 to avoid U/GID collisions for new local users/groups" ${ACCOUNT}
 fi
 
 # This is required by sshd for AuthorizedKeyCommand.

@@ -32,6 +32,7 @@ var (
 	// version is set at compile time.
 	version                 string
 	userAgent               = fmt.Sprintf("gcua/%v", version)
+	apiTimeout              = 20 * time.Second
 	accountRefreshFrequency = time.Minute
 	accountRefreshCooldown  = time.Second
 	keyRefreshFrequency     = 30 * time.Minute
@@ -50,6 +51,7 @@ func main() {
 		APIBase:      *apiBase,
 		InstanceBase: *instanceBase,
 		UserAgent:    userAgent,
+		Timeout:      apiTimeout,
 	})
 	if err != nil {
 		logger.Fatalf("Init failed: %v.", err)
