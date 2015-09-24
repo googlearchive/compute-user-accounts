@@ -17,6 +17,7 @@
 package apiclient
 
 import (
+	"fmt"
 	"net/http"
 	"path"
 	"strings"
@@ -29,7 +30,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/compute-user-accounts/logger"
 
-	cua "google.golang.org/api/clouduseraccounts/vm_alpha"
+	cua "google.golang.org/api/clouduseraccounts/vm_beta"
 )
 
 // An APIClient allows fetching of accounts information from the Compute
@@ -39,7 +40,7 @@ type APIClient interface {
 	UsersAndGroups() ([]*cua.LinuxUserView, []*cua.LinuxGroupView, error)
 	// AuthorizedKeys fetches the authorized SSH keys for the given
 	// username.
-	AuthorizedKeys(username string) ([]string, error)
+	AuthorizedKeys(username string) (*cua.AuthorizedKeysView, error)
 }
 
 // A Config provides configuration options for an APIClient.
@@ -100,7 +101,7 @@ func (c *googleAPIClient) UsersAndGroups() ([]*cua.LinuxUserView, []*cua.LinuxGr
 }
 
 // AuthorizedKeys satisfies APIClient.
-func (c *googleAPIClient) AuthorizedKeys(username string) ([]string, error) {
+func (c *googleAPIClient) AuthorizedKeys(username string) (*cua.AuthorizedKeysView, error) {
 	logger.Infof("Fetching authorized keys for %v.", username)
 	p, z, i, err := c.instanceInfo()
 	if err != nil {
@@ -110,10 +111,9 @@ func (c *googleAPIClient) AuthorizedKeys(username string) ([]string, error) {
 	switch e := err.(type) {
 	case nil:
 		if view.Resource == nil {
-			logger.Noticef("User %v has no authorized keys.", username)
-			return nil, nil
+			return nil, fmt.Errorf("Invalid authorized keys returned for %v.", username)
 		}
-		return view.Resource.Keys, nil
+		return view.Resource, nil
 	case *googleapi.Error:
 		if e.Code == 404 {
 			logger.Noticef("User %v does not exist.", username)

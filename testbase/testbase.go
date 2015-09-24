@@ -27,16 +27,16 @@ import (
 var ExpUsers = []*accounts.User{
 	&accounts.User{
 		Name:          "user1",
-		UID:           4001,
-		GID:           4000,
+		UID:           1001,
+		GID:           1000,
 		Gecos:         "John Doe",
 		HomeDirectory: "/home/user1",
 		Shell:         "/bin/bash",
 	},
 	&accounts.User{
 		Name:          "user2",
-		UID:           4002,
-		GID:           4000,
+		UID:           1002,
+		GID:           1000,
 		Gecos:         "Jane Doe",
 		HomeDirectory: "/home/user2",
 		Shell:         "/bin/zsh",
@@ -47,12 +47,12 @@ var ExpUsers = []*accounts.User{
 var ExpGroups = []*accounts.Group{
 	&accounts.Group{
 		Name:    "group1",
-		GID:     4000,
+		GID:     1000,
 		Members: []string(nil),
 	},
 	&accounts.Group{
 		Name:    "group2",
-		GID:     4001,
+		GID:     1001,
 		Members: []string{"user2", "user1"},
 	},
 }
