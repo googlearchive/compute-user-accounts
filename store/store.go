@@ -22,18 +22,24 @@ import (
 	"github.com/GoogleCloudPlatform/compute-user-accounts/accounts"
 	"github.com/GoogleCloudPlatform/compute-user-accounts/apiclient"
 	"github.com/GoogleCloudPlatform/compute-user-accounts/logger"
+
+	cua "google.golang.org/api/clouduseraccounts/vm_beta"
+)
+
+// These are fixed values for the special group containing users who have the
+// ability to sudo on this VM.
+const (
+	sudoersGroupName = "gce-sudoers"
+	sudoersGroupGID  = 4001
 )
 
 // These are mocked in tests.
 var (
 	timeNow   = time.Now
 	timeAfter = time.After
-	// accountRefreshCallback exposes a testing callback invoked when the
-	// store has refreshed user and group data.
-	accountRefreshCallback = func() {}
-	// keyRefreshCallback exposes a testing callback invoked when the store
-	// has refreshed all key data.
-	keyRefreshCallback = func() {}
+	// refreshCallback exposes a testing callback invoked when the
+	// store has refreshed user, group, and key data.
+	refreshCallback = func(*Config) {}
 )
 
 // A Config provides configuration options for a store AccountProvider.
@@ -55,6 +61,7 @@ type Config struct {
 type cachedUser struct {
 	user           *accounts.User
 	keys           []string
+	sudoer         bool
 	keyRefreshTime time.Time
 }
 
@@ -103,7 +110,7 @@ func updateTask(s *cachingStore) {
 			updateAccounts(s)
 			lastRefresh = timeNow()
 		}
-		accountRefreshCallback()
+		go updateKeys(s)
 		if ch != nil {
 			close(ch)
 		}
@@ -111,7 +118,6 @@ func updateTask(s *cachingStore) {
 }
 
 func updateAccounts(s *cachingStore) {
-	defer func() { go updateKeys(s) }()
 	users, groups, err := s.apiClient.UsersAndGroups()
 	if err != nil {
 		logger.Errorf("Failed refresh: %v.", err)
@@ -137,6 +143,7 @@ func updateAccounts(s *cachingStore) {
 		if old, ok := oldUsers[user.Name]; ok {
 			cu.keyRefreshTime = old.keyRefreshTime
 			cu.keys = old.keys
+			cu.sudoer = old.sudoer
 		}
 		s.usersByName[user.Name] = cu
 		s.usersByUID[user.UID] = cu
@@ -156,16 +163,16 @@ func updateAccounts(s *cachingStore) {
 func updateKeys(s *cachingStore) {
 	type update struct {
 		name string
-		keys []string
+		view *cua.AuthorizedKeysView
 		err  error
 		time time.Time
 	}
-	ch := make(chan update, 16)
+	ch := make(chan update)
 	workers := 0
 	for _, name := range keysRequiringRefresh(s) {
 		go func(n string) {
-			keys, err := s.apiClient.AuthorizedKeys(n)
-			ch <- update{n, keys, err, timeNow()}
+			view, err := s.apiClient.AuthorizedKeys(n)
+			ch <- update{n, view, err, timeNow()}
 		}(name)
 		workers += 1
 	}
@@ -184,11 +191,12 @@ func updateKeys(s *cachingStore) {
 	defer s.Unlock()
 	for _, rk := range refreshedKeys {
 		if cu, ok := s.usersByName[rk.name]; ok {
-			cu.keys = rk.keys
+			cu.keys = rk.view.Keys
+			cu.sudoer = rk.view.Sudoer
 			cu.keyRefreshTime = rk.time
 		}
 	}
-	keyRefreshCallback()
+	refreshCallback(s.config)
 }
 
 func keysRequiringRefresh(s *cachingStore) []string {
@@ -256,14 +264,16 @@ func (s *cachingStore) Users() ([]*accounts.User, error) {
 func (s *cachingStore) GroupByName(name string) (*accounts.Group, error) {
 	s.RLock()
 	defer s.RUnlock()
+	if name == sudoersGroupName {
+		return s.sudoersGroup(), nil
+	}
 	g, ok := s.groupsByName[name]
 	if ok {
 		return g, nil
 	}
-	ch := make(chan struct{})
 	logger.Info("Triggering refresh due to missing group.")
-	go func() { s.updateWaiters <- ch }()
 	// Do not block on update.
+	go func() { s.updateWaiters <- nil }()
 	return nil, accounts.GroupNameNotFound(name)
 }
 
@@ -271,6 +281,9 @@ func (s *cachingStore) GroupByName(name string) (*accounts.Group, error) {
 func (s *cachingStore) GroupByGID(gid uint32) (*accounts.Group, error) {
 	s.RLock()
 	defer s.RUnlock()
+	if gid == sudoersGroupGID {
+		return s.sudoersGroup(), nil
+	}
 	g, ok := s.groupsByGID[gid]
 	if ok {
 		return g, nil
@@ -282,12 +295,13 @@ func (s *cachingStore) GroupByGID(gid uint32) (*accounts.Group, error) {
 func (s *cachingStore) Groups() ([]*accounts.Group, error) {
 	s.RLock()
 	defer s.RUnlock()
-	ret := make([]*accounts.Group, len(s.groupsByName))
+	ret := make([]*accounts.Group, len(s.groupsByName)+1)
 	i := 0
 	for _, g := range s.groupsByName {
 		ret[i] = g
 		i++
 	}
+	ret[i] = s.sudoersGroup()
 	return ret, nil
 }
 
@@ -295,7 +309,7 @@ func (s *cachingStore) Groups() ([]*accounts.Group, error) {
 func (s *cachingStore) Names() ([]string, error) {
 	s.RLock()
 	defer s.RUnlock()
-	ret := make([]string, len(s.usersByName)+len(s.groupsByName))
+	ret := make([]string, len(s.usersByName)+len(s.groupsByName)+1)
 	i := 0
 	for u := range s.usersByName {
 		ret[i] = u
@@ -305,11 +319,15 @@ func (s *cachingStore) Names() ([]string, error) {
 		ret[i] = g
 		i++
 	}
+	ret[i] = sudoersGroupName
 	return ret, nil
 }
 
 // IsName satisfies AccountProvider.
 func (s *cachingStore) IsName(name string) (bool, error) {
+	if name == sudoersGroupName {
+		return true, nil
+	}
 	s.RLock()
 	defer s.RUnlock()
 	_, ok1 := s.usersByName[name]
@@ -326,19 +344,35 @@ func (s *cachingStore) AuthorizedKeys(username string) ([]string, error) {
 		logger.Infof("Returning cached keys for %v due to cooldown.", username)
 		return cu.keys, nil
 	}
-	keys, err := s.apiClient.AuthorizedKeys(username)
+	view, err := s.apiClient.AuthorizedKeys(username)
 	if err != nil {
 		return cu.keys, nil
 	}
-	go s.updateCachedKeys(username, keys, timeNow())
-	return keys, nil
+	go s.updateCachedKeys(username, view.Keys, view.Sudoer, timeNow())
+	return view.Keys, nil
 }
 
-func (s *cachingStore) updateCachedKeys(username string, keys []string, refreshTime time.Time) {
+func (s *cachingStore) updateCachedKeys(username string, keys []string, sudoer bool, refreshTime time.Time) {
 	s.Lock()
 	defer s.Unlock()
 	if cu, ok := s.usersByName[username]; ok {
 		cu.keys = keys
+		cu.sudoer = sudoer
 		cu.keyRefreshTime = refreshTime
+	}
+}
+
+func (s *cachingStore) sudoersGroup() *accounts.Group {
+	// This must only be called under RLock().
+	members := make([]string, 0)
+	for name, cu := range s.usersByName {
+		if cu.sudoer {
+			members = append(members, name)
+		}
+	}
+	return &accounts.Group{
+		Name:    sudoersGroupName,
+		GID:     sudoersGroupGID,
+		Members: members,
 	}
 }

@@ -60,8 +60,8 @@ func TestAll(t *testing.T) {
 			testbase.ExpUsers[0],
 		},
 		&testbase.SuccessCase{
-			"UserByUID(4002)",
-			func() (interface{}, error) { return client.UserByUID(4002) },
+			"UserByUID(1002)",
+			func() (interface{}, error) { return client.UserByUID(1002) },
 			testbase.ExpUsers[1],
 		},
 		&testbase.SuccessCase{
@@ -70,8 +70,8 @@ func TestAll(t *testing.T) {
 			testbase.ExpGroups[0],
 		},
 		&testbase.SuccessCase{
-			"GroupByGID(4001)",
-			func() (interface{}, error) { return client.GroupByGID(4001) },
+			"GroupByGID(1001)",
+			func() (interface{}, error) { return client.GroupByGID(1001) },
 			testbase.ExpGroups[1],
 		},
 		&testbase.SuccessCase{
@@ -143,8 +143,8 @@ func TestAll(t *testing.T) {
 			"request failed",
 		},
 		&testbase.FailureCase{
-			"UserByUID(4002)",
-			func() (interface{}, error) { return client.UserByUID(4002) },
+			"UserByUID(1002)",
+			func() (interface{}, error) { return client.UserByUID(1002) },
 			"request failed",
 		},
 		&testbase.FailureCase{
@@ -153,8 +153,8 @@ func TestAll(t *testing.T) {
 			"request failed",
 		},
 		&testbase.FailureCase{
-			"GroupByGID(4001)",
-			func() (interface{}, error) { return client.GroupByGID(4001) },
+			"GroupByGID(1001)",
+			func() (interface{}, error) { return client.GroupByGID(1001) },
 			"request failed",
 		},
 		&testbase.FailureCase{

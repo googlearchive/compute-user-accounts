@@ -38,7 +38,7 @@ var (
 	keyRefreshFrequency     = 30 * time.Minute
 	keyRefreshCooldown      = 500 * time.Millisecond
 
-	apiBase      = flag.String("clouduseraccounts", "https://www.googleapis.com/clouduseraccounts/vm_alpha/", "the URL to the base of the clouduseraccounts API")
+	apiBase      = flag.String("clouduseraccounts", "https://www.googleapis.com/clouduseraccounts/vm_beta/", "the URL to the base of the clouduseraccounts API")
 	instanceBase = flag.String("compute", "https://www.googleapis.com/compute/v1/", "the URL to the base of the compute API")
 )
 

@@ -13,7 +13,7 @@
 # limitations under the License.
 .PHONY: all proto build debug test cover package clean
 
-VERSION:=0.$(shell date -u +%Y%m%d.%H%M%S)
+VERSION:=1.$(shell date -u +%Y%m%d.%H%M%S)
 PACKAGE_NAME:="gcua"
 DESCRIPTION:="Google Compute User Accounts."
 LICENSE:="Apache 2.0"
@@ -25,7 +25,7 @@ LIBSTDCXX_VERSION=4.4.7
 
 SOCKET_PATH:=/var/run/gcua.socket
 BTARGET:=build
-GOFLAGS=-ldflags "-X main.version ${VERSION} -X github.com/GoogleCloudPlatform/compute-user-accounts/server.socketPath ${SOCKET_PATH}"
+GOFLAGS=-ldflags "-X main.version=${VERSION} -X github.com/GoogleCloudPlatform/compute-user-accounts/server.socketPath=${SOCKET_PATH}"
 TTARGET:=test
 TFLAGS:=
 
