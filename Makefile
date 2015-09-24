@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-.PHONY: all proto build debug test cover package clean
+.PHONY: all proto build debug test cover package gcua-se-el6 gcua-se-el7 clean
 
 VERSION:=1.$(shell date -u +%Y%m%d.%H%M%S)
 PACKAGE_NAME:="gcua"
@@ -35,13 +35,15 @@ SOURCES:= \
   nssplugin/bin/libnss_google.so.2.0.1=/usr/lib/ \
   etc/init.d/gcua \
   etc/sudoers.d/gcua \
-  etc/systemd/system/gcua.service
+  etc/systemd/system/gcua.service \
 
 FPM_ARGS:= \
   -s dir -n ${PACKAGE_NAME} -v ${VERSION} -a native --license ${LICENSE} \
   -m ${MAINTAINER} --description ${DESCRIPTION} --url ${URL} --vendor ${VENDOR} \
-  --after-install etc/after-install.sh --before-remove etc/before-remove.sh \
-  --after-remove etc/after-remove.sh --config-files etc/ ${SOURCES}
+  --config-files etc/ \
+  --after-install etc/after-install.sh \
+  --before-remove etc/before-remove.sh \
+  --after-remove etc/after-remove.sh ${SOURCES}
 
 all: build
 
@@ -68,6 +70,12 @@ package: build
 	@fpm -t rpm -p pkg/ \
 	  -d "glibc >= ${LIBC_VERSION}" -d "libstdc++ >= ${LIBSTDCXX_VERSION}" \
 	  ${FPM_ARGS}
+
+gcua-se-el6:
+	@rpmbuild -ba selinux/el6/gcua-se-el6.spec
+
+gcua-se-el7:
+	@rpmbuild -ba selinux/el7/gcua-se-el7.spec
 
 clean:
 	@rm -rf pkg

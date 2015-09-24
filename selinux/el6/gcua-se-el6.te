@@ -1,0 +1,66 @@
+policy_module(gcua-se-el6, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type gcua-se_t;
+type gcua-se_exec_t;
+init_daemon_domain(gcua-se_t, gcua-se_exec_t)
+
+# permissive gcua-se_t;
+
+########################################
+#
+# gcua-se local policy
+#
+
+allow gcua-se_t self:fifo_file rw_fifo_file_perms;
+allow gcua-se_t self:unix_stream_socket create_stream_socket_perms;
+
+domain_use_interactive_fds(gcua-se_t)
+
+files_read_etc_files(gcua-se_t)
+
+auth_use_nsswitch(gcua-se_t)
+
+miscfiles_read_localization(gcua-se_t)
+
+sysnet_dns_name_resolve(gcua-se_t)
+
+require {
+	type var_run_t;
+	type chkpwd_t;
+	type gcua-se_t;
+	type system_dbusd_t;
+	type sshd_t;
+	class sock_file { write create unlink setattr };
+	class capability net_admin;
+	class unix_dgram_socket { getattr create connect setopt };
+	class unix_stream_socket connectto;
+}
+
+#============= gcua-se_t ==============
+allow gcua-se_t self:capability net_admin;
+allow gcua-se_t self:unix_dgram_socket { connect getattr create setopt };
+allow gcua-se_t var_run_t:sock_file { create unlink setattr };
+corenet_tcp_connect_http_port(gcua-se_t)
+files_rw_pid_dirs(gcua-se_t)
+kernel_read_net_sysctls(gcua-se_t)
+kernel_search_network_sysctl(gcua-se_t)
+logging_send_syslog_msg(gcua-se_t)
+logging_write_generic_logs(gcua-se_t)
+
+#============= system_dbusd_t ==============
+allow system_dbusd_t gcua-se_t:unix_stream_socket connectto;
+allow system_dbusd_t var_run_t:sock_file write;
+
+#============= sshd_t ==============
+allow sshd_t var_run_t:sock_file write;
+kernel_search_network_sysctl(sshd_t)
+kernel_read_net_sysctls(sshd_t)
+
+#============= chkpwd_t ==============
+allow chkpwd_t var_run_t:sock_file write;
+allow chkpwd_t gcua-se_t:unix_stream_socket connectto;

@@ -1,0 +1,22 @@
+## <summary>policy for gcua-se-el6</summary>
+
+
+########################################
+## <summary>
+##	Transition to gcua-se.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`gcua-se_domtrans',`
+	gen_require(`
+		type gcua-se_t, gcua-se_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, gcua-se_exec_t, gcua-se_t)
+')
+
