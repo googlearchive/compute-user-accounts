@@ -66,10 +66,10 @@ package: build
 	@mkdir -p pkg
 	@fpm -t deb -p pkg/ \
 	  -d "libc6 >= ${LIBC_VERSION}" -d "libstdc++6 >= ${LIBSTDCXX_VERSION}" \
-	  ${FPM_ARGS}
+	  -d "openssh-server" ${FPM_ARGS}
 	@fpm -t rpm -p pkg/ \
 	  -d "glibc >= ${LIBC_VERSION}" -d "libstdc++ >= ${LIBSTDCXX_VERSION}" \
-	  ${FPM_ARGS}
+	  -d "openssh-server" ${FPM_ARGS}
 
 gcua-se-el6:
 	@rpmbuild -ba selinux/el6/gcua-se-el6.spec
