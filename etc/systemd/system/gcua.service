@@ -7,4 +7,4 @@ ExecStart=/usr/share/google/gcua
 Restart=on-failure
 
 [Install]
-WantedBy=sshd.service
+WantedBy=sshd.service ssh.service
