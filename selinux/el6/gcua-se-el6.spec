@@ -15,7 +15,7 @@
 
 Name:           gcua-se-el6
 Version:        0.1
-Release:        0%{?dist}
+Release:        %(date +%s)
 Summary:        SELinux policy module for gcua
 Group:          System Environment/Base
 Distribution:   gcua

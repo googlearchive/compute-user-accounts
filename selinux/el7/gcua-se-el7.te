@@ -41,6 +41,10 @@ require {
 	type sshd_t;
 	type chkpwd_t;
 	type oddjob_mkhomedir_exec_t;
+	type postfix_cleanup_t;
+	type postfix_pickup_t;
+	type postfix_master_t;
+	type groupadd_t;
 	class unix_stream_socket connectto;
 	class capability net_admin;
 	class file { write entrypoint };
@@ -52,6 +56,11 @@ require {
 #============= chkpwd_t ==============
 allow chkpwd_t gcua-se-el7_t:unix_stream_socket connectto;
 allow chkpwd_t var_run_t:sock_file write;
+init_stream_connect_script(chkpwd_t)
+
+#============= groupadd_t ==============
+allow groupadd_t var_run_t:sock_file write;
+init_stream_connect_script(groupadd_t)
 
 #============= gcua-se-el7_t ==============
 allow gcua-se-el7_t self:capability net_admin;
@@ -67,19 +76,29 @@ kernel_read_unix_sysctls(gcua-se-el7_t)
 logging_create_devlog_dev(gcua-se-el7_t)
 virt_sandbox_domain(gcua-se-el7_t)
 
-#============= sshd_t ==============
+#============= postfix_cleanup_t ==============
+allow postfix_cleanup_t var_run_t:sock_file write;
 
+#============= postfix_master_t ==============
+allow postfix_master_t var_run_t:sock_file write;
+
+#============= postfix_pickup_t ==============
+allow postfix_pickup_t var_run_t:sock_file write;
+
+#============= sshd_t ==============
 allow sshd_t gcua-se-el7_t:unix_stream_socket connectto;
 allow sshd_t var_run_t:sock_file write;
+init_stream_connect_script(sshd_t)
 
 #============= system_dbusd_t ==============
 allow system_dbusd_t gcua-se-el7_t:unix_stream_socket connectto;
 allow system_dbusd_t var_run_t:sock_file write;
 
 #============= systemd_logind_t ==============
-
 allow systemd_logind_t gcua-se-el7_t:unix_stream_socket connectto;
 allow systemd_logind_t var_run_t:sock_file write;
+allow systemd_logind_t var_run_t:sock_file write;
+init_stream_connect_script(systemd_logind_t)
 
 #============= unconfined_t ==============
 allow unconfined_t oddjob_mkhomedir_exec_t:file entrypoint;

@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 Name:   gcua-se-el7
 Version:        0.1
-Release:        0%{?dist}
+Release:        %(date +%s)
 Summary:        SELinux policy module for gcua-se-el7
 Group:          System Environment/Base
 Distribution:   gcua
