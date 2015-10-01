@@ -25,7 +25,7 @@ LIBSTDCXX_VERSION=4.4.7
 
 SOCKET_PATH:=/var/run/gcua.socket
 BTARGET:=build
-GOFLAGS=-ldflags "-X main.version ${VERSION} -X github.com/GoogleCloudPlatform/compute-user-accounts/server.socketPath ${SOCKET_PATH}"
+GOFLAGS=-ldflags "-X main.version=${VERSION} -X github.com/GoogleCloudPlatform/compute-user-accounts/server.socketPath=${SOCKET_PATH}"
 TTARGET:=test
 TFLAGS:=
 
