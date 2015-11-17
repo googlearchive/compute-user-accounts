@@ -337,6 +337,8 @@ func (s *cachingStore) IsName(name string) (bool, error) {
 
 // AuthorizedKeys satisfies AccountProvider.
 func (s *cachingStore) AuthorizedKeys(username string) ([]string, error) {
+	// Call UserByName first to trigger refresh if the user is missing.
+	s.UserByName(username)
 	cu, ok := s.userByNameImpl(username)
 	if !ok {
 		return nil, accounts.UsernameNotFound(username)
